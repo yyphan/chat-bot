@@ -1,0 +1,41 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+.envrc
+
+# Poetry
+poetry.lock
+.python-version
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# Local env & secrets
+.env
+.env.*
+
+# Cache
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Chroma / vector stores
+chroma/
+chroma.db/
+
