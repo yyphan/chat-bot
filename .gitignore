@@ -1,0 +1,36 @@
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python / venv
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+env/
+.envrc
+
+# Project-level env & secrets
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Build / cache / tools
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# Local data / vector stores (if created at root)
+chroma/
+chroma.db/
+
