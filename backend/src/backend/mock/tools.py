@@ -11,9 +11,9 @@ def mock_get_application_status() -> str:
 def mock_get_transaction_status(transaction_id: str) -> str:
     """
     Args:
-        transaction_id (str): 交易的唯一标识符（交易流水号）。
+        transaction_id (str): The unique identifier of the transaction.
     """
     if not transaction_id or len(transaction_id) < 4:
-        return "Invalid transaction ID, please provide the correct transaction流水号。"
+        return "Invalid transaction ID, please provide a valid transaction reference number."
     
     return f"The status of transaction ID {transaction_id} is: [Due to insufficient balance, the payment failed]. Please recharge and try again."

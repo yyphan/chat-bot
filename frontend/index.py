@@ -13,7 +13,7 @@ if "messages" not in st.session_state:
 
 with st.sidebar:
     st.title("🛠️ Manager Dashboard")
-    st.markdown("在这里修改 Bot 的配置，它会即时生效。")
+    st.markdown("You can edit the bot configuration here and it will take effect immediately.")
     
     try:
         config_res = requests.get(f"{API_BASE}/config").json()
