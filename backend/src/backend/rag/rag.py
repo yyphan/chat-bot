@@ -6,7 +6,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.tools import tool
-from backend.config import global_config
+from ..config import global_config
 
 # Global RAG state
 embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
@@ -89,9 +89,6 @@ def init_or_update_knowledge_base(url: str):
         print(f"[error] Fatal error while updating knowledge base: {e}")
         return False
 
-# Load the default URL once on startup
-init_or_update_knowledge_base(global_config.kb_url)
-
 @tool
 def search_knowledge_base(query: str) -> str:
     """
@@ -101,7 +98,9 @@ def search_knowledge_base(query: str) -> str:
         query (str): The customer's concrete question.
     """
     if not retriever:
-        return "Knowledge base has not been initialized yet."
+        # Lazily initialize on first use (and return a friendly message if it fails)
+        if not init_or_update_knowledge_base(global_config.kb_url):
+            return "Knowledge base is not available right now."
     retrieved_docs = retriever.invoke(query)
     # Concatenate all retrieved document snippets for the model to read
     return "\n\n---\n\n".join(doc.page_content for doc in retrieved_docs)
