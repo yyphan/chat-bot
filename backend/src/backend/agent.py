@@ -7,13 +7,10 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from .mock.tools import mock_get_application_status, mock_get_transaction_status
 from .rag.rag import search_knowledge_base
-from .config import global_config
 
-# Initialize the model with current guidelines as system instruction
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     temperature=0,
-    system_instruction=global_config.guidelines,
 )
 
 tools = [

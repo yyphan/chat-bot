@@ -2,23 +2,19 @@ import streamlit as st
 import requests
 import uuid
 
-# FastAPI 后端地址
 API_BASE = "http://localhost:8000/api"
 
 st.set_page_config(page_title="Atome Customer Service System", layout="wide")
 
-# 初始化 Session ID
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if "messages" not in st.session_state:
     st.session_state.messages =[]
 
-# ================= 左侧边栏：Manager 面板 (Part 1 需求) =================
 with st.sidebar:
     st.title("🛠️ Manager Dashboard")
     st.markdown("在这里修改 Bot 的配置，它会即时生效。")
     
-    # 获取当前配置
     try:
         config_res = requests.get(f"{API_BASE}/config").json()
         current_url = config_res.get("kb_url", "")
@@ -42,22 +38,17 @@ with st.sidebar:
                 else:
                     st.error("❌ Failed to update Bot.")
 
-# ================= 右侧主界面：Customer Chat UI =================
 st.title("💬 Atome Customer Service")
 
-# 显示历史消息
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# 聊天输入框
 if prompt := st.chat_input("Ask me anything about Atome..."):
-    # 显示用户的输入
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # 请求后端
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:

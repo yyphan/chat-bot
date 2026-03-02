@@ -20,7 +20,13 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    inputs = {"messages":[("user", request.message)]}
+    # Always prepend the latest guidelines as a system message
+    inputs = {
+        "messages": [
+            ("system", global_config.guidelines),
+            ("user", request.message),
+        ]
+    }
     config = {"configurable": {"thread_id": request.session_id}}
     
     # Trigger LangGraph and Gemini
