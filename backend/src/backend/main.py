@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from agent import agent_executor
+from .agent import agent_executor
 
 app = FastAPI(title="Atome Customer Service API (Gemini Powered)")
 

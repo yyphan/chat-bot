@@ -5,8 +5,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 
-from mock.tools import mock_get_application_status, mock_get_transaction_status
-from rag.rag import search_knowledge_base
+from .mock.tools import mock_get_application_status, mock_get_transaction_status
+from .rag.rag import search_knowledge_base
 
 system_prompt = """
 You are a professional customer service AI assistant for Atome. Please follow the following rules:
