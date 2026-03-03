@@ -83,7 +83,8 @@ with st.sidebar:
     with st.expander("Debug: test knowledge base", expanded=False):
         test_query = st.text_input("Test query", "What is Atome Card?")
         if st.button("Run RAG query"):
-            rag_answer = search_knowledge_base(test_query)
+            # search_knowledge_base is a LangChain StructuredTool; use .invoke(...)
+            rag_answer = search_knowledge_base.invoke(test_query)
             st.write("RAG raw answer:")
             st.write(rag_answer)
 
