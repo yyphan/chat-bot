@@ -216,8 +216,61 @@ with tab1:
 
 
 # ── Tab 2: Agent Builder (Part 2) ─────────────────────────────────────────────
+if "uploaded_docs" not in st.session_state:
+    st.session_state.uploaded_docs = []  # list of {"name": str, "text": str}
+if "meta_messages" not in st.session_state:
+    st.session_state.meta_messages = []  # list of {"role": str, "content": str}
+
 with tab2:
     st.title("Agent Builder")
-    st.info(
-        "Upload documents and chat with the meta-agent to configure the customer service bot. Coming in the next step."
-    )
+    col_docs, col_meta = st.columns([0.618, 1])
+
+    # Left column: document upload
+    with col_docs:
+        st.subheader("Knowledge Documents")
+
+        uploaded_files = st.file_uploader(
+            "Upload PDF or TXT files",
+            type=["pdf", "txt"],
+            accept_multiple_files=True,
+            key="doc_uploader",
+        )
+
+        if uploaded_files:
+            existing_names = {d["name"] for d in st.session_state.uploaded_docs}
+            for f in uploaded_files:
+                if f.name not in existing_names:
+                    if f.type == "application/pdf":
+                        try:
+                            import pypdf
+                            reader = pypdf.PdfReader(f)
+                            text = "\n".join(
+                                page.extract_text() or "" for page in reader.pages
+                            )
+                        except Exception as e:
+                            st.error(f"Failed to read {f.name}: {e}")
+                            continue
+                    else:
+                        text = f.read().decode("utf-8", errors="ignore")
+
+                    st.session_state.uploaded_docs.append(
+                        {"name": f.name, "text": text}
+                    )
+
+        if st.session_state.uploaded_docs:
+            st.markdown("**Uploaded files:**")
+            for i, doc in enumerate(st.session_state.uploaded_docs):
+                col_name, col_remove = st.columns([4, 1])
+                with col_name:
+                    st.markdown(f"📄 {doc['name']}")
+                with col_remove:
+                    if st.button("✕", key=f"remove_doc_{i}"):
+                        st.session_state.uploaded_docs.pop(i)
+                        st.rerun()
+        else:
+            st.caption("No documents uploaded yet.")
+
+    # Right column: meta-agent chat (coming in Step 3)
+    with col_meta:
+        st.subheader("Configure with Meta-Agent")
+        st.info("Chat interface coming in the next step.")
