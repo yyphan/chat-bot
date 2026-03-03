@@ -1,8 +1,7 @@
 class AppConfig:
     def __init__(self):
         self.kb_url = "https://help.atome.ph/hc/en-gb/categories/4439682039065-Atome-Card"
-        self.guidelines = """
-You are a professional customer service AI assistant for Atome. Please follow the following rules:
+        self.guidelines = """You are a professional customer service AI assistant for Atome. Please follow the following rules:
 
 1. If the user asks general questions, use the search_knowledge_base tool to query the knowledge base and answer.
 

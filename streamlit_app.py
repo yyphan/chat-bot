@@ -36,6 +36,7 @@ from backend.config import global_config  # noqa: E402
 from backend.rag.rag import init_or_update_knowledge_base  # noqa: E402
 from backend.agent import agent_executor  # noqa: E402
 from backend.fix import auto_fix_mistake  # noqa: E402
+from backend.meta_agent import meta_agent_executor, META_SYSTEM_PROMPT  # noqa: E402
 
 
 @st.cache_resource(show_spinner=False)
@@ -52,6 +53,15 @@ st.markdown(
     <style>
         div[data-testid="stForm"] {
             min-height: 600px;
+        }
+        div[data-testid="stChatInput"] {
+            margin-top: -8px;
+        }
+        div[data-testid="stElementContainer"]:has(div[data-testid="stChatInput"]) {
+            margin-top: -12px;
+        }
+        div[data-testid="stElementContainer"]:has(button[kind="primary"]) {
+            margin-top: 0px;
         }
     </style>
     """,
@@ -119,7 +129,7 @@ with tab1:
     with col_chat:
         st.title("Atome Customer Service")
 
-        chat_box = st.container(height=600)
+        chat_box = st.container(height=528)
         with chat_box:
             for i, msg in enumerate(st.session_state.messages):
                 with st.chat_message(msg["role"]):
@@ -270,7 +280,89 @@ with tab2:
         else:
             st.caption("No documents uploaded yet.")
 
-    # Right column: meta-agent chat (coming in Step 3)
+    # Right column: meta-agent chat
     with col_meta:
         st.subheader("Configure with Meta-Agent")
-        st.info("Chat interface coming in the next step.")
+
+        # height = 600 - ~68px input - ~44px button = 488
+        meta_chat_box = st.container(height=488)
+        with meta_chat_box:
+            for msg in st.session_state.meta_messages:
+                with st.chat_message(msg["role"]):
+                    st.markdown(msg["content"])
+
+        components.html(
+            """
+            <script>
+                window.parent.document
+                    .querySelectorAll('[data-testid="stVerticalBlockBorderWrapper"]')
+                    .forEach(el => { el.scrollTop = el.scrollHeight; });
+            </script>
+            """,
+            height=0,
+        )
+
+        if meta_input := st.chat_input(
+            "Describe your requirements...", key="chat_input_tab2"
+        ):
+            st.session_state.meta_messages.append(
+                {"role": "user", "content": meta_input}
+            )
+
+            doc_context = ""
+            if st.session_state.uploaded_docs:
+                doc_context = "\n\n--- Reference Documents ---"
+                for doc in st.session_state.uploaded_docs:
+                    doc_context += f"\n\n[Document: {doc['name']}]\n{doc['text']}"
+
+            messages = [("system", META_SYSTEM_PROMPT + doc_context)]
+            for m in st.session_state.meta_messages:
+                role = "human" if m["role"] == "user" else "assistant"
+                messages.append((role, m["content"]))
+
+            with st.spinner("Thinking..."):
+                try:
+                    result = meta_agent_executor.invoke({"messages": messages})
+                    reply = _extract_text_content(result["messages"][-1].content)
+                    st.session_state.meta_messages.append(
+                        {"role": "assistant", "content": reply}
+                    )
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+        if st.button("⚡ Generate & Apply", type="primary", use_container_width=True):
+            doc_context = ""
+            if st.session_state.uploaded_docs:
+                doc_context = "\n\n--- Reference Documents ---"
+                for doc in st.session_state.uploaded_docs:
+                    doc_context += f"\n\n[Document: {doc['name']}]\n{doc['text']}"
+
+            generate_msg = (
+                "Based on our conversation and the reference documents, "
+                "please generate and apply the bot configuration now."
+            )
+
+            messages = [("system", META_SYSTEM_PROMPT + doc_context)]
+            for m in st.session_state.meta_messages:
+                role = "human" if m["role"] == "user" else "assistant"
+                messages.append((role, m["content"]))
+            messages.append(("human", generate_msg))
+
+            with meta_chat_box:
+                with st.chat_message("user"):
+                    st.markdown(generate_msg)
+            with st.spinner("Generating configuration..."):
+                try:
+                    result = meta_agent_executor.invoke({"messages": messages})
+                    reply = _extract_text_content(result["messages"][-1].content)
+                    st.session_state.meta_messages.append(
+                        {"role": "user", "content": generate_msg}
+                    )
+                    st.session_state.meta_messages.append(
+                        {"role": "assistant", "content": reply}
+                    )
+                    st.success("Configuration applied to the bot in Tab 1.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
