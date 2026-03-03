@@ -1,90 +1,99 @@
 import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-from langchain_community.document_loaders import WebBaseLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from urllib.parse import urlparse
+
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.tools import tool
+
 from ..config import global_config
+
 
 # Global RAG state
 embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
 vectorstore = None
 retriever = None
 
-def get_all_links(url: str, keyword: str) -> set:
-    """Fetch a web page and extract all full hyperlinks that contain the given keyword."""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-    }
-    links = set()
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href']
-            # Zendesk links are often relative paths (e.g. /hc/en-gb/articles/...)
-            if keyword in href.lower():
-                full_url = urljoin(url, href)
-                links.add(full_url)
-    except Exception as e:
-        print(f"[warning] Failed to fetch {url}: {e}")
-    return links
 
-def init_or_update_knowledge_base(url: str):
+def _build_zendesk_api_base(category_url: str) -> tuple[str, str]:
+    """
+    Given a Help Center category URL, derive the API base and category id.
+
+    Example:
+        https://help.atome.ph/hc/en-gb/categories/4439682039065-Atome-Card
+        -> api_base: https://help.atome.ph/api/v2/help_center
+           category_id: 4439682039065
+    """
+    parsed = urlparse(category_url)
+    base = f"{parsed.scheme}://{parsed.netloc}/api/v2/help_center"
+    parts = [p for p in parsed.path.split("/") if p]
+    # Expect ".../categories/{id-and-slug}"
+    cat_segment = parts[-1]
+    category_id = cat_segment.split("-")[0]
+    return base, category_id
+
+
+def _fetch_category_articles(category_url: str) -> list[dict]:
+    """Fetch all public articles in a Zendesk Help Center category using the official API."""
+    api_base, category_id = _build_zendesk_api_base(category_url)
+    url = f"{api_base}/categories/{category_id}/articles.json"
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "atome-rag-bot/1.0",
+    }
+
+    articles: list[dict] = []
+    while url:
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        batch = data.get("articles", [])
+        articles.extend(batch)
+        url = data.get("next_page")
+
+    return articles
+
+
+def init_or_update_knowledge_base(url: str) -> bool:
+    """Use Zendesk Help Center API to fetch and index all articles under the given category URL."""
     global vectorstore, retriever
     print(f"\n[info] Deeply parsing knowledge base from: {url}")
-    
-    try:
-        article_urls = set()
-        
-        # 1. If the user directly provides an article URL, include it as‑is
-        if '/articles/' in url.lower():
-            article_urls.add(url)
-        else:
-            # 2. From the current page, find all directly exposed articles
-            article_urls.update(get_all_links(url, '/articles/'))
-            
-            # 3. From the current page, find all section URLs
-            section_urls = get_all_links(url, '/sections/')
-            print(f"[info] Found {len(section_urls)} subsections, crawling them for articles...")
-            
-            # 4. Visit each section and collect the articles inside
-            for sec_url in section_urls:
-                sub_articles = get_all_links(sec_url, '/articles/')
-                article_urls.update(sub_articles)
 
-        urls_to_load = list(article_urls)
-        
-        # Fallback: if nothing was found, just crawl the given URL itself
-        if not urls_to_load:
-            print("[warning] No article links found, falling back to single‑page mode.")
-            urls_to_load = [url]
-            
-        print(f"[info] Discovery finished. Found {len(urls_to_load)} article URLs. Loading and indexing...")
-        
-        # Bulk‑load all article pages
-        # Note: we simply pass the list for now; concurrency limits can be added later if needed
-        loader = WebBaseLoader(urls_to_load)
-        docs = loader.load()
-        
-        print(f"[info] Downloaded {len(docs)} documents, splitting and embedding...")
-        
-        # Zendesk articles are usually well structured, slightly larger chunks work better
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-        splits = text_splitter.split_documents(docs)
-        
+    try:
+        articles = _fetch_category_articles(url)
+        if not articles:
+            print("[warning] No articles returned from Zendesk API.")
+            return False
+
+        texts = []
+        metadatas = []
+        for art in articles:
+            body = art.get("body", "") or ""
+            if not body.strip():
+                continue
+            texts.append(body)
+            metadatas.append(
+                {
+                    "title": art.get("title", ""),
+                    "url": art.get("html_url", ""),
+                    "id": art.get("id"),
+                }
+            )
+
+        if not texts:
+            print("[warning] All fetched articles were empty; nothing to index.")
+            return False
+
+        print(f"[info] Downloaded {len(texts)} non-empty article bodies, embedding and indexing...")
+
         global embeddings
-        vectorstore = Chroma.from_documents(documents=splits, embedding=embeddings)
-        
+        vectorstore = Chroma.from_texts(texts=texts, embedding=embeddings, metadatas=metadatas)
+
         # k=4 means the model will see the top 4 most relevant chunks for each query
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 4}) 
-        
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
+
         print("[success] Knowledge base has been fully updated and vectorized.\n")
         return True
-        
+
     except Exception as e:
         print(f"[error] Fatal error while updating knowledge base: {e}")
         return False
