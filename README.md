@@ -22,3 +22,10 @@ Claude Code for coding
 ### Securities Add-Ons if I had time
 1. encryption of user data (e.g. transcation ID, card details)
 2. prevent prompt attacks
+
+
+## Part-2
+
+### Assumptions
+1. Manager will always have a Zendesk Url for knowledge base and explicitly provide to meta-agent in chat
+2. The doc and chat are to finalize "additional instructions"
