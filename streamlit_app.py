@@ -35,7 +35,7 @@ _load_local_env()
 _load_secrets_to_env()
 
 from backend.config import global_config  # noqa: E402
-from backend.rag.rag import init_or_update_knowledge_base  # noqa: E402
+from backend.rag.rag import init_or_update_knowledge_base, search_knowledge_base  # noqa: E402
 from backend.agent import agent_executor  # noqa: E402
 
 
@@ -53,12 +53,13 @@ if "messages" not in st.session_state:
 
 
 # Initialize KB once per URL (won't re-run on every Streamlit rerun)
-_ensure_kb_loaded(global_config.kb_url)
+KB_INIT_OK = _ensure_kb_loaded(global_config.kb_url)
 
 
 with st.sidebar:
     st.title("Manager Dashboard")
     st.caption("Edit the bot configuration here. Changes take effect immediately.")
+    st.caption(f"Knowledge base init: {'OK' if KB_INIT_OK else 'FAILED'}")
 
     with st.form("config_form"):
         new_url = st.text_input("Knowledge Base URL", value=global_config.kb_url)
@@ -78,6 +79,13 @@ with st.sidebar:
                     st.error("Failed to load the new knowledge base URL.")
             else:
                 st.success("Configuration updated.")
+
+    with st.expander("Debug: test knowledge base", expanded=False):
+        test_query = st.text_input("Test query", "What is Atome Card?")
+        if st.button("Run RAG query"):
+            rag_answer = search_knowledge_base(test_query)
+            st.write("RAG raw answer:")
+            st.write(rag_answer)
 
 
 st.title("Atome Customer Service")
