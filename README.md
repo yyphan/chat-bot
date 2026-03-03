@@ -1,8 +1,13 @@
 # chat-bot
+link： https://yao-yifan-chatbot.streamlit.app/
+
+It might take some seconds booting up for the firstime but afterwards should be low latency
+
 ## Part-1
 
 ### Used AIs: 
 Gemini for requirement analysis and project planning
+
 Claude Code for coding
 
 ### Major Human Inputs:
