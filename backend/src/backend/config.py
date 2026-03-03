@@ -8,5 +8,7 @@ class AppConfig:
             3. If the user asks about failed transactions, you must first confirm whether there is a transaction_id. If there is no transaction_id, politely ask the user for it. If there is a transaction_id, use the mock_get_transaction_status tool to query.
             4. Be polite and professional.
         """ 
+        self.mistake_logs = [] 
+        self.correction_rules = [] 
 
 global_config = AppConfig()

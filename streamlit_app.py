@@ -37,6 +37,7 @@ _load_secrets_to_env()
 from backend.config import global_config  # noqa: E402
 from backend.rag.rag import init_or_update_knowledge_base  # noqa: E402
 from backend.agent import agent_executor  # noqa: E402
+from backend.fix import auto_fix_mistake  # noqa: E402
 
 
 @st.cache_resource(show_spinner=False)
@@ -63,6 +64,8 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "report_target_index" not in st.session_state:
+    st.session_state.report_target_index = None
 
 
 # Initialize KB once per URL (won't re-run on every Streamlit rerun)
@@ -95,9 +98,13 @@ with st.sidebar:
 
 st.title("Atome Customer Service")
 
-for msg in st.session_state.messages:
+for i, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+
+        if msg["role"] == "assistant":
+            if st.button("Report mistake", key=f"report_{i}"):
+                st.session_state.report_target_index = i
 
 
 def _extract_text_content(message_content) -> str:
@@ -112,6 +119,38 @@ def _extract_text_content(message_content) -> str:
     return str(message_content)
 
 
+# Report mistake flow (applies to any assistant message)
+if st.session_state.report_target_index is not None:
+    idx = st.session_state.report_target_index
+    if 0 <= idx < len(st.session_state.messages):
+        wrong_answer = st.session_state.messages[idx]["content"]
+        # Find the most recent user question before this answer
+        question = ""
+        for j in range(idx - 1, -1, -1):
+            if st.session_state.messages[j]["role"] == "user":
+                question = st.session_state.messages[j]["content"]
+                break
+
+        with st.form("report_mistake_form"):
+            st.markdown("### Report mistake")
+            st.markdown("We will use your feedback to improve future answers.")
+            st.markdown(f"**Question:** {question or '(not found)'}")
+            st.markdown(f"**Bot answer:** {wrong_answer}")
+            user_feedback = st.text_area("What was wrong? How should it respond instead?")
+            submitted = st.form_submit_button("Submit feedback")
+
+            if submitted:
+                with st.spinner("Analyzing the mistake and updating internal rules..."):
+                    new_rule = auto_fix_mistake(
+                        question=question,
+                        wrong_answer=wrong_answer,
+                        user_feedback=user_feedback,
+                    )
+                st.success("Thank you! I have learned a new rule to avoid this mistake.")
+                st.markdown(f"**New internal rule:** {new_rule}")
+                st.session_state.report_target_index = None
+
+
 if prompt := st.chat_input("Ask me anything about Atome..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -120,9 +159,20 @@ if prompt := st.chat_input("Ask me anything about Atome..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
+                # Build dynamic system prompt with learned corrections
+                system_prompt = global_config.guidelines.strip()
+                if global_config.correction_rules:
+                    corrections = "\n".join(
+                        f"- {r}" for r in global_config.correction_rules
+                    )
+                    system_prompt += (
+                        "\n\n[CRITICAL: Learned Lessons from Past Mistakes]:\n"
+                        f"{corrections}"
+                    )
+
                 inputs = {
                     "messages": [
-                        ("system", global_config.guidelines),
+                        ("system", system_prompt),
                         ("user", prompt),
                     ]
                 }
@@ -132,7 +182,9 @@ if prompt := st.chat_input("Ask me anything about Atome..."):
                 last_message = response["messages"][-1]
                 reply = _extract_text_content(last_message.content)
                 st.markdown(reply)
-                st.session_state.messages.append({"role": "assistant", "content": reply})
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": reply}
+                )
+                st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
-

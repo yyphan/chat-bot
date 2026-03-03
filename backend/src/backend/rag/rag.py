@@ -1,6 +1,7 @@
 import requests
 from urllib.parse import urlparse
 
+import chromadb
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.tools import tool
@@ -9,7 +10,7 @@ from ..config import global_config
 
 
 # Global RAG state
-embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
+embeddings = None
 vectorstore = None
 retriever = None
 
@@ -86,7 +87,10 @@ def init_or_update_knowledge_base(url: str) -> bool:
         print(f"[info] Downloaded {len(texts)} non-empty article bodies, embedding and indexing...")
 
         global embeddings
-        vectorstore = Chroma.from_texts(texts=texts, embedding=embeddings, metadatas=metadatas)
+        if embeddings is None:
+            embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-001")
+        chroma_client = chromadb.EphemeralClient()
+        vectorstore = Chroma.from_texts(texts=texts, embedding=embeddings, metadatas=metadatas, client=chroma_client)
 
         # k=4 means the model will see the top 4 most relevant chunks for each query
         retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
